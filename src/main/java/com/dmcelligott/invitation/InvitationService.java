@@ -20,4 +20,9 @@ public class InvitationService {
     public void sendInvitations(Meeting meeting, List<Person> invitees) {
         invitationRepository.save(invitees.stream().map( person -> new Invitation(meeting, person)).collect(Collectors.toList()));
     }
+
+    public void sendInvitation(Meeting meeting, Person invitee) {
+        Invitation invitation = invitationRepository.save(new Invitation(meeting, invitee));
+        System.out.println("Sending invitation: " + invitation);
+    }
 }

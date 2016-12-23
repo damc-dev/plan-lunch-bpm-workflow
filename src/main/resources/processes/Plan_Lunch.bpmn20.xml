@@ -1,29 +1,104 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<definitions id="definitions"
-             xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
              xmlns:activiti="http://activiti.org/bpmn"
              typeLanguage="http://www.w3.org/2001/XMLSchema"
              expressionLanguage="http://www.w3.org/1999/XPath"
              targetNamespace="http://www.activiti.org/bpmn2.0">
 
-    <process id="retrieveLunchParticipantsProcess">
+    <process id="sendLunchInvitations">
 
         <startEvent id="start"/>
 
         <sequenceFlow
                 id="flow1"
                 sourceRef="start"
-                targetRef="sigw"/>
+                targetRef="createListOfPeople"/>
 
         <serviceTask
-                id="sigw"
-                name="Delegate to Spring Integration"
-                activiti:delegateExpression="#{gateway}"/>
+                id="createListOfPeople"
+                name="Get List of People to Invite"
+                activiti:expression="${createPersonList.execute(execution)}"/>
 
         <sequenceFlow
                 id="scriptFlow"
-                sourceRef="sigw"
-                targetRef="confirmMovementTask"/>
+                sourceRef="createListOfPeople"
+                targetRef="invitationSubProcess"/>
+
+        <subProcess id="invitationSubProcess">
+
+            <multiInstanceLoopCharacteristics isSequential="false" activiti:collection="${personRepository.findAll()}" activiti:elementVariable="invitee" >
+            </multiInstanceLoopCharacteristics>
+
+            <startEvent id="invitationSubProcessStart" />
+
+            <sequenceFlow sourceRef="invitationSubProcessStart" targetRef="sendInvitation" />
+
+            <serviceTask id="sendInvitation" activiti:type="mail">
+                <extensionElements>
+                    <activiti:field name="from" stringValue="damc.dev@gmail.com" />
+                    <activiti:field name="to" expression="${invitee.getEmail()}" />
+                    <activiti:field name="subject" expression="You have been invited to ${meeting.getLocation()} at ${meeting.getStartTime()}" />
+                    <activiti:field name="html">
+                        <activiti:expression>
+                            <![CDATA[
+                              <html>
+                                <body>
+                                  Hello ${invitee.getName()},<br/><br/>
+
+                                  You have been invited to ${meeting.getLocation()} at ${meeting.getStartTime()}
+
+                                  Please respond<br/><br/>
+
+                                    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                                      <tr>
+                                        <td>
+                                          <table border="0" cellspacing="0" cellpadding="0">
+                                            <tr>
+                                              <td bgcolor="#EB7035" style="padding: 12px 18px 12px 18px; -webkit-border-radius:3px; border-radius:3px" align="center"><a href="http://localhost:8080/invitation/respond?response=accept&meetingId=${meeting.getId()}&personId=${invitee.getId()}&executionId=${execution.getId()}" target="_blank" style="font-size: 16px; font-family: Helvetica, Arial, sans-serif; font-weight: normal; color: #ffffff; text-decoration: none; display: inline-block;">Accept &rarr;</a></td>
+                                            </tr>
+                                          </table>
+                                        </td>
+                                        <td>
+                                          <table border="0" cellspacing="0" cellpadding="0">
+                                            <tr>
+                                              <td bgcolor="#EB7035" style="padding: 12px 18px 12px 18px; -webkit-border-radius:3px; border-radius:3px" align="center"><a href="http://localhost:8080/invitation/respond?response=decline&meetingId=${meeting.getId()}&personId=${invitee.getId()}&executionId=${execution.getId()}" target="_blank" style="font-size: 16px; font-family: Helvetica, Arial, sans-serif; font-weight: normal; color: #ffffff; text-decoration: none; display: inline-block;">Decline &rarr;</a></td>
+                                            </tr>
+                                          </table>
+                                        </td>
+                                      </tr>
+                                    </table>
+
+                                  Kind regards,<br/>
+
+                                  Automation
+                                </body>
+                              </html>
+                            ]]>
+                        </activiti:expression>
+                    </activiti:field>
+                </extensionElements>
+            </serviceTask>
+<!--
+            <serviceTask id="sendInvitation" name="Send Invitation" activiti:expression="#{invitationService.sendInvitation(meeting, invitee)}" />
+-->
+            <sequenceFlow sourceRef="sendInvitation" targetRef="waitForResponse" />
+
+            <receiveTask id="waitForResponse" name="wait" />
+
+            <sequenceFlow sourceRef="waitForResponse" targetRef="invitationSubProcessEnd" />
+
+            <endEvent id="invitationSubProcessEnd" />
+        </subProcess>
+
+        <boundaryEvent id="escalationTimer" cancelActivity="true" attachedToRef="invitationSubProcess">
+            <timerEventDefinition>
+                <timeDate>${dueDate}</timeDate>
+            </timerEventDefinition>
+        </boundaryEvent>
+
+        <sequenceFlow id="scriptFlow2"
+                      sourceRef="invitationSubProcess"
+                      targetRef="confirmMovementTask" />
 
         <scriptTask
                 id="confirmMovementTask"

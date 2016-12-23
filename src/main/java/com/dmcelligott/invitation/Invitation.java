@@ -26,6 +26,9 @@ public class Invitation {
 
     private Date updatedDate;
 
+    public Invitation() {
+    }
+
     public Invitation(Meeting meeting, Person person) {
         this.meeting = meeting;
         this.person = person;

@@ -43,8 +43,9 @@ public class ProcessController {
         invitationService.sendInvitations(meeting, personRepository.findAll());
 
         Map<String, Object> variables = new HashMap<String, Object>();
+        variables.put("meeting", meeting);
         variables.put("location", meeting.getLocation());
 
-        runtimeService.startProcessInstanceByKey("retrieveLunchParticipantsProcess", variables);
+        runtimeService.startProcessInstanceByKey("sendLunchInvitations", variables);
     }
 }
